@@ -11,15 +11,15 @@ var (
 	badSym1    = portfolio.Position{Sym: ""}
 	badSym2    = portfolio.Position{Sym: "bogus", SecType: portfolio.Cash}
 	badSec1    = portfolio.Position{Sym: portfolio.CashSym, SecType: portfolio.Stock}
-	badShares1 = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Shares: new(big.Rat)}
+	badShares1 = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Shares: big.Rat{}}
 	badShares2 = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock}
-	badPct1    = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: big.NewRat(-1, 1)}
-	badPct2    = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: big.NewRat(101, 1)}
-	goodAct1   = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Shares: big.NewRat(100, 1)}
-	goodAct2   = portfolio.Position{Sym: "bogus2", SecType: portfolio.Stock, Shares: big.NewRat(100, 1)}
-	goodPct1   = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: big.NewRat(40, 1)}
-	goodPct2   = portfolio.Position{Sym: "bogus2", SecType: portfolio.Stock, Pct: big.NewRat(60, 1)}
-	goodPct3   = portfolio.Position{Sym: "bogus3", SecType: portfolio.Stock, Pct: big.NewRat(1, 1)}
+	badPct1    = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *big.NewRat(-1, 1)}
+	badPct2    = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *big.NewRat(101, 1)}
+	goodAct1   = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Shares: *big.NewRat(100, 1)}
+	goodAct2   = portfolio.Position{Sym: "bogus2", SecType: portfolio.Stock, Shares: *big.NewRat(100, 1)}
+	goodPct1   = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *big.NewRat(40, 1)}
+	goodPct2   = portfolio.Position{Sym: "bogus2", SecType: portfolio.Stock, Pct: *big.NewRat(60, 1)}
+	goodPct3   = portfolio.Position{Sym: "bogus3", SecType: portfolio.Stock, Pct: *big.NewRat(1, 1)}
 )
 
 func TestSetActual(t *testing.T) {
@@ -33,7 +33,6 @@ func TestSetActual(t *testing.T) {
 		{"NonCashSym", []portfolio.Position{badSym2}, portfolio.ErrBadSym},
 		{"NonCashType", []portfolio.Position{badSec1}, portfolio.ErrBadSecType},
 		{"ZeroShares", []portfolio.Position{badShares1}, portfolio.ErrBadNumShares},
-		{"NilShares", []portfolio.Position{badShares2}, portfolio.ErrBadNumShares},
 		{"DuplicateSym", []portfolio.Position{goodAct1, goodAct1}, portfolio.ErrDupSym},
 		{"Good", []portfolio.Position{goodAct1, goodAct2}, nil},
 	}

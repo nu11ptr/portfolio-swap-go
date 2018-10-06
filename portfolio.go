@@ -3,12 +3,15 @@ package portfolio
 import (
 	"errors"
 	"math/big"
+	"sync"
 )
 
 // SecType represents a security type
 type SecType int
 
 const (
+	maxPos = 16
+
 	// CashSym represents a cash position
 	CashSym = "*CASH*"
 
@@ -37,7 +40,7 @@ var (
 type Position struct {
 	Sym                string
 	SecType            SecType
-	Shares, Price, Pct *big.Rat
+	Shares, Price, Pct big.Rat
 }
 
 func (p *Position) validate(actual bool) error {
@@ -48,11 +51,11 @@ func (p *Position) validate(actual bool) error {
 		return ErrBadSecType
 	}
 	if actual {
-		if p.Shares == nil || p.Shares.Cmp(zero) < 1 {
+		if p.Shares.Cmp(zero) < 1 {
 			return ErrBadNumShares
 		}
 	} else {
-		if p.Pct == nil || (p.Pct.Cmp(zero) < 1 || p.Pct.Cmp(oneHundred) > 0) {
+		if p.Pct.Cmp(zero) < 1 || p.Pct.Cmp(oneHundred) > 0 {
 			return ErrBadPct
 		}
 	}
@@ -62,6 +65,7 @@ func (p *Position) validate(actual bool) error {
 // Account represents a brokerage account
 type Account struct {
 	actual, desired map[string]Position
+	mut             sync.Mutex
 
 	Margin, NonTaxable bool
 }
@@ -69,13 +73,14 @@ type Account struct {
 // NewAccount creates a new account
 func NewAccount(margin, nonTaxable bool) *Account {
 	return &Account{
-		actual: make(map[string]Position, 16), desired: make(map[string]Position),
+		actual: make(map[string]Position, maxPos), desired: make(map[string]Position, maxPos),
 		Margin: margin, NonTaxable: nonTaxable,
 	}
 }
 
 func setPositions(m map[string]Position, p []Position, actual bool) error {
 	totalPct := new(big.Rat)
+
 	for _, pos := range p {
 		if err := pos.validate(actual); err != nil {
 			return err
@@ -84,7 +89,7 @@ func setPositions(m map[string]Position, p []Position, actual bool) error {
 			return ErrDupSym
 		}
 		if !actual {
-			totalPct.Add(totalPct, pos.Pct)
+			totalPct.Add(totalPct, &pos.Pct)
 			if totalPct.Cmp(oneHundred) == 1 {
 				return ErrPctOverflow
 			}
@@ -99,10 +104,18 @@ func setPositions(m map[string]Position, p []Position, actual bool) error {
 
 // SetActual sets the actual set of positions for the account
 func (a *Account) SetActual(p []Position) error {
+	a.mut.Lock()
+	defer a.mut.Unlock()
+
+	a.actual = make(map[string]Position, maxPos)
 	return setPositions(a.actual, p, true)
 }
 
 // SetDesired sets the desired sets of positions for the account
 func (a *Account) SetDesired(p []Position) error {
+	a.mut.Lock()
+	defer a.mut.Unlock()
+
+	a.desired = make(map[string]Position, maxPos)
 	return setPositions(a.desired, p, false)
 }
