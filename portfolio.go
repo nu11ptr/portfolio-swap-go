@@ -25,13 +25,18 @@ const (
 
 var (
 	zero       = new(big.Rat)
+	one        = big.NewRat(1, 1)
 	oneHundred = big.NewRat(100, 1)
 
-	ErrBadSym       = errors.New("Symbol must be set to a valid value")
+	ErrBadSym      = errors.New("Symbol must be set to a valid value")
+	ErrDupSym      = errors.New("Duplicate symbol")
+	ErrSymNotFound = errors.New("The specified symbol could not be found")
+
+	ErrBadPrice     = errors.New("Price must be greater than zero")
 	ErrBadSecType   = errors.New("Invalid security type for the given symbol")
 	ErrBadNumShares = errors.New("Actual positions require shares to be set")
 	ErrBadPct       = errors.New("Percent must be set for a desired position")
-	ErrDupSym       = errors.New("Duplicate symbol")
+
 	ErrPctOverflow  = errors.New("Total position percentage cannot exceed 100")
 	ErrPctUnderflow = errors.New("Total position percentage must add up to 100")
 )
@@ -94,6 +99,9 @@ func setPositions(m map[string]Position, p []Position, actual bool) error {
 				return ErrPctOverflow
 			}
 		}
+		if pos.Sym == CashSym {
+			pos.Price = *one
+		}
 		m[pos.Sym] = pos
 	}
 	if !actual && totalPct.Cmp(oneHundred) == -1 {
@@ -118,4 +126,69 @@ func (a *Account) SetDesired(p []Position) error {
 
 	a.desired = make(map[string]Position, maxPos)
 	return setPositions(a.desired, p, false)
+}
+
+func copyMap(m map[string]Position) map[string]Position {
+	m2 := make(map[string]Position, maxPos)
+	for k, v := range m {
+		m2[k] = v
+	}
+	return m2
+}
+
+// Actual returns a copy of the map storing actual positions
+func (a *Account) Actual() map[string]Position {
+	a.mut.Lock()
+	defer a.mut.Unlock()
+
+	return copyMap(a.actual)
+}
+
+// Desired returns a copy of the map storing the desired positions
+func (a *Account) Desired() map[string]Position {
+	a.mut.Lock()
+	defer a.mut.Unlock()
+
+	return copyMap(a.desired)
+}
+
+func setPrice(m map[string]Position, sym string, price big.Rat) bool {
+	p, ok := m[sym]
+	if ok {
+		p.Price = price
+		m[sym] = p
+		return true
+	}
+	return false
+}
+
+// SetPrice sets the price on the symbol specified. It returns an error if the price or symbol
+// is invalid or if the symbol cannot be found
+func (a *Account) SetPrice(sym string, price big.Rat) error {
+	if sym == "" || sym == CashSym {
+		return ErrBadSym
+	}
+	if price.Cmp(zero) < 1 {
+		return ErrBadPrice
+	}
+	a.mut.Lock()
+	defer a.mut.Unlock()
+
+	found := setPrice(a.actual, sym, price)
+	found2 := setPrice(a.desired, sym, price)
+
+	if !found && !found2 {
+		return ErrSymNotFound
+	}
+	return nil
+}
+
+// SetPriceStr sets the price of the symbol specified using a string. It returns an error if the
+// price or symbol is invalid or if the symbol can't be found
+func (a *Account) SetPriceStr(sym, price string) error {
+	r := new(big.Rat)
+	if _, ok := r.SetString(price); !ok {
+		return ErrBadPrice
+	}
+	return a.SetPrice(sym, *r)
 }
