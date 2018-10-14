@@ -2,8 +2,9 @@ package portfolio
 
 import (
 	"errors"
-	"math/big"
 	"sync"
+
+	"github.com/nu11ptr/decimal"
 )
 
 // SecType represents a security type
@@ -24,9 +25,9 @@ const (
 )
 
 var (
-	zero       = new(big.Rat)
-	one        = big.NewRat(1, 1)
-	oneHundred = big.NewRat(100, 1)
+	zero       = decimal.NewInt(0)
+	one        = decimal.NewInt(1)
+	oneHundred = decimal.NewInt(100)
 
 	ErrBadSym      = errors.New("Symbol must be set to a valid value")
 	ErrDupSym      = errors.New("Duplicate symbol")
@@ -45,7 +46,7 @@ var (
 type Position struct {
 	Sym                string
 	SecType            SecType
-	Shares, Price, Pct big.Rat
+	Shares, Price, Pct decimal.Decimal
 }
 
 func (p *Position) validate(actual bool) error {
@@ -56,11 +57,11 @@ func (p *Position) validate(actual bool) error {
 		return ErrBadSecType
 	}
 	if actual {
-		if p.Shares.Cmp(zero) < 1 {
+		if p.Shares.LTE(zero) {
 			return ErrBadNumShares
 		}
 	} else {
-		if p.Pct.Cmp(zero) < 1 || p.Pct.Cmp(oneHundred) > 0 {
+		if p.Pct.LTE(zero) || p.Pct.GT(oneHundred) {
 			return ErrBadPct
 		}
 	}
@@ -69,8 +70,10 @@ func (p *Position) validate(actual bool) error {
 
 // Account represents a brokerage account
 type Account struct {
-	actual, desired map[string]Position
-	mut             sync.Mutex
+	actual, desired                                       map[string]Position
+	balance, lmtPct, lmtOpenPct, lmtClosepct, rebalThresh decimal.Decimal
+	mut                                                   sync.Mutex
+	sellOnClose                                           bool
 
 	Margin, NonTaxable bool
 }
@@ -84,7 +87,7 @@ func NewAccount(margin, nonTaxable bool) *Account {
 }
 
 func setPositions(m map[string]Position, p []Position, actual bool) error {
-	totalPct := new(big.Rat)
+	totalPct := new(decimal.Decimal)
 
 	for _, pos := range p {
 		if err := pos.validate(actual); err != nil {
@@ -94,8 +97,8 @@ func setPositions(m map[string]Position, p []Position, actual bool) error {
 			return ErrDupSym
 		}
 		if !actual {
-			totalPct.Add(totalPct, &pos.Pct)
-			if totalPct.Cmp(oneHundred) == 1 {
+			totalPct = totalPct.Add(&pos.Pct)
+			if totalPct.GT(oneHundred) {
 				return ErrPctOverflow
 			}
 		}
@@ -104,7 +107,7 @@ func setPositions(m map[string]Position, p []Position, actual bool) error {
 		}
 		m[pos.Sym] = pos
 	}
-	if !actual && totalPct.Cmp(oneHundred) == -1 {
+	if !actual && totalPct.LT(oneHundred) {
 		return ErrPctUnderflow
 	}
 	return nil
@@ -152,10 +155,10 @@ func (a *Account) Desired() map[string]Position {
 	return copyMap(a.desired)
 }
 
-func setPrice(m map[string]Position, sym string, price big.Rat) bool {
+func setPrice(m map[string]Position, sym string, price *decimal.Decimal) bool {
 	p, ok := m[sym]
 	if ok {
-		p.Price = price
+		p.Price = *price
 		m[sym] = p
 		return true
 	}
@@ -164,11 +167,11 @@ func setPrice(m map[string]Position, sym string, price big.Rat) bool {
 
 // SetPrice sets the price on the symbol specified. It returns an error if the price or symbol
 // is invalid or if the symbol cannot be found
-func (a *Account) SetPrice(sym string, price big.Rat) error {
+func (a *Account) SetPrice(sym string, price *decimal.Decimal) error {
 	if sym == "" || sym == CashSym {
 		return ErrBadSym
 	}
-	if price.Cmp(zero) < 1 {
+	if price.LTE(zero) {
 		return ErrBadPrice
 	}
 	a.mut.Lock()
@@ -186,9 +189,9 @@ func (a *Account) SetPrice(sym string, price big.Rat) error {
 // SetPriceStr sets the price of the symbol specified using a string. It returns an error if the
 // price or symbol is invalid or if the symbol can't be found
 func (a *Account) SetPriceStr(sym, price string) error {
-	r := new(big.Rat)
-	if _, ok := r.SetString(price); !ok {
+	d, ok := decimal.New(price)
+	if !ok {
 		return ErrBadPrice
 	}
-	return a.SetPrice(sym, *r)
+	return a.SetPrice(sym, d)
 }

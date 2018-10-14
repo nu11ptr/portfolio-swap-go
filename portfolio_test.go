@@ -1,10 +1,10 @@
 package portfolio_test
 
 import (
-	"math/big"
 	"reflect"
 	"testing"
 
+	"github.com/nu11ptr/decimal"
 	portfolio "github.com/nu11ptr/portfolio-swap"
 )
 
@@ -12,15 +12,15 @@ var (
 	badSym1    = portfolio.Position{Sym: ""}
 	badSym2    = portfolio.Position{Sym: "bogus", SecType: portfolio.Cash}
 	badSec1    = portfolio.Position{Sym: portfolio.CashSym, SecType: portfolio.Stock}
-	badShares1 = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Shares: big.Rat{}}
+	badShares1 = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Shares: *decimal.NewInt(0)}
 	badShares2 = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock}
-	badPct1    = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *big.NewRat(-1, 1)}
-	badPct2    = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *big.NewRat(101, 1)}
-	goodAct1   = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Shares: *big.NewRat(100, 1)}
-	goodAct2   = portfolio.Position{Sym: "bogus2", SecType: portfolio.Stock, Shares: *big.NewRat(100, 1)}
-	goodDes1   = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *big.NewRat(40, 1)}
-	goodDes2   = portfolio.Position{Sym: "bogus2", SecType: portfolio.Stock, Pct: *big.NewRat(60, 1)}
-	goodDes3   = portfolio.Position{Sym: "bogus3", SecType: portfolio.Stock, Pct: *big.NewRat(1, 1)}
+	badPct1    = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *decimal.NewInt(-1)}
+	badPct2    = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *decimal.NewInt(101)}
+	goodAct1   = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Shares: *decimal.NewInt(100)}
+	goodAct2   = portfolio.Position{Sym: "bogus2", SecType: portfolio.Stock, Shares: *decimal.NewInt(100)}
+	goodDes1   = portfolio.Position{Sym: "bogus", SecType: portfolio.Stock, Pct: *decimal.NewInt(40)}
+	goodDes2   = portfolio.Position{Sym: "bogus2", SecType: portfolio.Stock, Pct: *decimal.NewInt(60)}
+	goodDes3   = portfolio.Position{Sym: "bogus3", SecType: portfolio.Stock, Pct: *decimal.NewInt(1)}
 )
 
 func TestSetActual(t *testing.T) {
@@ -131,9 +131,7 @@ func TestSetPriceStr(t *testing.T) {
 				expected := map[string]portfolio.Position{"bogus": goodDes1, "bogus2": goodDes2}
 				// Manually copy the price into a new copy of the position and put back into the map
 				p := expected[test.sym]
-				r := new(big.Rat)
-				pr, _ := r.SetString(test.price)
-				p.Price = *pr
+				p.Price = *decimal.NewMust(test.price)
 				expected[test.sym] = p
 
 				actual := acct.Desired()
