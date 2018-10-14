@@ -1,0 +1,31 @@
+env:
+  global:
+    - CC_TEST_REPORTER_ID=4dc3d624529cc64fe34683fc765cad22a04489c604ec5e1826d3b222b3ee7678
+
+sudo: false
+
+language: go
+
+go:
+  - 1.10.x
+  - 1.11.x
+
+os:
+  - linux
+  - osx
+  - windows
+
+before_script:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then go get github.com/mattn/goveralls; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then chmod +x ./cc-test-reporter; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./cc-test-reporter before-build; fi
+
+script:
+  - go vet -all ./...
+  - go test -race -v ./...
+  - go test -covermode=count -coverprofile=c.out ./...
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then $GOPATH/bin/goveralls -coverprofile=c.out -service=travis-ci; fi
+
+after_script:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT; fi
